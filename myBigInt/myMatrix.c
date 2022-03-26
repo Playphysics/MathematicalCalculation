@@ -92,7 +92,7 @@ void Mat_Add(Matrix_T retMat, Matrix_CT mat1, Matrix_CT mat2) {
     const size_t num = MatElemNum(retMat);
 
     for (size_t i = 0U; i < num; ++i) {
-        BigInt_Add(MatArray(retMat)[i], MatArrData(mat1, i), MatArrData(mat2, i));
+        BigInt_Add(&MatArray(retMat)[i], MatArrData(mat1, i), MatArrData(mat2, i));
     }
 }
 
