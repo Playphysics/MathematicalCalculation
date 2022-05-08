@@ -4,13 +4,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct BigInt_Impl_RawT {
+struct BigInt_Impl_T {
     size_t bufferLen;
     size_t dataLen;
     uint32_t data[];
 };
-typedef struct BigInt_Impl_RawT *BigInt_Impl_T;
-typedef const struct BigInt_Impl_RawT *BigInt_Impl_CT;
 
 // === Alloc/Free ====== Alloc/Free ====== Alloc/Free ====== Alloc/Free ===
 // === Alloc/Free ====== Alloc/Free ====== Alloc/Free ====== Alloc/Free ===
@@ -18,21 +16,21 @@ typedef const struct BigInt_Impl_RawT *BigInt_Impl_CT;
 
 volatile size_t BigInt_mallocCount, BigInt_freeCount;
 
-static BigInt_Impl_T BigInt_Alloc(size_t dataLen) {
+static BigInt_T BigInt_Alloc(size_t dataLen) {
     const size_t mask = 0x0FU;
     const size_t extraSize = 2U * sizeof(size_t);
     const size_t bufLen = (dataLen + extraSize + mask) & ~mask;
-    BigInt_Impl_T retPtr = 0;
+    BigInt_T retPtr = 0;
 
     if (bufLen > dataLen) {
         BigInt_mallocCount += 1U;
-        retPtr = (BigInt_Impl_T)malloc(bufLen);
+        retPtr = (BigInt_T)malloc(bufLen);
         retPtr->bufferLen = bufLen - extraSize;
         retPtr->dataLen = 0U;
     }
     return retPtr;
 }
-static void BigInt_Free(BigInt_Impl_T ptr) {
+static void BigInt_Free(BigInt_T ptr) {
     BigInt_freeCount += 1U;
     free((void *)ptr);
 }
@@ -42,24 +40,23 @@ static void BigInt_Free(BigInt_Impl_T ptr) {
 // === convert from/to str ====== convert from/to str ====== convert from/to str ===
 
 void BigInt_Prt(BigInt_CT ret, size_t maxWidth, const char *end) {
-    BigInt_Impl_CT dest = ret;
-    size_t u32Size = (dest->dataLen + 3U) >> 2U;
+    size_t u32Size = (ret->dataLen + 3U) >> 2U;
 
-    printf("%8u: 0x", (unsigned int)dest->dataLen);
+    printf("%8u: 0x", (unsigned int)ret->dataLen);
 
     if (u32Size == 0U) {
         printf("%08X", 0U);
     } else if (u32Size > maxWidth && maxWidth >= 2U) {
         for (size_t i = 0U; i < maxWidth / 2U - 1U; ++i) {
-            printf("%08X ", dest->data[--u32Size]);
+            printf("%08X ", ret->data[--u32Size]);
         }
-        printf("%08X ...", dest->data[--u32Size]);
+        printf("%08X ...", ret->data[--u32Size]);
         u32Size = maxWidth / 2U;
     } else {
-        printf("%08X", dest->data[--u32Size]);
+        printf("%08X", ret->data[--u32Size]);
     }
     while (u32Size != 0U) {
-        printf(" %08X", dest->data[--u32Size]);
+        printf(" %08X", ret->data[--u32Size]);
     }
     printf("%s", end);
 }
@@ -96,7 +93,7 @@ static void BigInt_FromHexStr(uint32_t *dest, const char *hexStr, size_t hexLen)
 // === constructor ====== destructors ====== constructor ====== destructors ===
 // === constructor ====== destructors ====== constructor ====== destructors ===
 
-static void BigInt_ReduceToRealSize(BigInt_Impl_T ret, size_t curSize) {
+static void BigInt_ReduceToRealSize(BigInt_T ret, size_t curSize) {
     uint32_t i, temp;
     size_t retSize = (curSize + 3U) >> 2U;
 
@@ -111,7 +108,7 @@ static void BigInt_ReduceToRealSize(BigInt_Impl_T ret, size_t curSize) {
 }
 
 BigInt_T BigInt_New(uint64_t num, const char *hexStr) {
-    BigInt_Impl_T ret;
+    BigInt_T ret;
     size_t byteNum = sizeof(num);
 
     if (hexStr == 0 || hexStr[0] != '0' || hexStr[1] == '\0') {
@@ -129,30 +126,20 @@ BigInt_T BigInt_New(uint64_t num, const char *hexStr) {
 }
 
 void BigInt_Delete(BigInt_T ret) {
-    BigInt_Free((BigInt_Impl_T)ret);
+    BigInt_Free(ret);
 }
 
 void BigInt_Reset(BigInt_T *retPtr, uint64_t num, const char *hexStr) {
-    BigInt_Impl_T ret = *retPtr;
-    size_t byteNum = sizeof(num);
-    BigInt_Free(ret);
-
-    if (hexStr == 0 || hexStr[0] != '0' || hexStr[1] == '\0') {
-        ret = BigInt_Alloc(byteNum);
-        ret->data[0] = (uint32_t)(num >> 0U);
-        ret->data[1] = (uint32_t)(num >> 32U);
-    } else {
-        const size_t hexLen = strlen(hexStr + 2);
-        byteNum = (hexLen >> 1U) + (hexLen & 0x01U);
-        ret = BigInt_Alloc(byteNum);
-        BigInt_FromHexStr(ret->data, hexStr + 2, hexLen);
-    }
-    BigInt_ReduceToRealSize(ret, byteNum);
-    *retPtr = ret;
+    BigInt_Free(*retPtr);
+    *retPtr = BigInt_New(num, hexStr);
 }
 
 void BigInt_Swap(BigInt_T *in1, BigInt_T *in2) {
     BigInt_T temp = *in1;
+    *in1 = *in2, *in2 = temp;
+}
+void BigInt_CSwap(BigInt_CT *in1, BigInt_CT *in2) {
+    BigInt_CT temp = *in1;
     *in1 = *in2, *in2 = temp;
 }
 
@@ -172,7 +159,7 @@ static uint32_t Uint32Add(uint32_t *retPtr, uint32_t in1, uint32_t in2, uint32_t
     return carry;
 }
 
-static void BigInt_RawAdd(BigInt_Impl_T ret, BigInt_Impl_CT large, BigInt_Impl_CT small) {
+static void BigInt_RawAdd(BigInt_T ret, BigInt_CT large, BigInt_CT small) {
     const size_t smallLen = (small->dataLen + 3U) >> 2U;
     const size_t largeLen = (large->dataLen + 3U) >> 2U;
     uint32_t carry = 0U;
@@ -187,28 +174,24 @@ static void BigInt_RawAdd(BigInt_Impl_T ret, BigInt_Impl_CT large, BigInt_Impl_C
 }
 
 void BigInt_Add(BigInt_T *retPtr, BigInt_CT in1, BigInt_CT in2) {
-    BigInt_Impl_CT large, small;
-    BigInt_Impl_T ret = *retPtr;
+    BigInt_T ret = *retPtr;
     size_t retSize;
 
-    if (((BigInt_Impl_CT)in1)->dataLen >= ((BigInt_Impl_CT)in2)->dataLen) {
-        large = (BigInt_Impl_CT)in1, small = (BigInt_Impl_CT)in2;
-    } else {
-        large = (BigInt_Impl_CT)in2, small = (BigInt_Impl_CT)in1;
-    }
-    retSize = large->dataLen + sizeof(large->data[0]);
+    if (in1->dataLen < in2->dataLen) BigInt_CSwap(&in1, &in2);
+
+    retSize = in1->dataLen + sizeof(in1->data[0]);
     if (ret->bufferLen < retSize) ret = BigInt_Alloc(retSize);
 
-    BigInt_RawAdd(ret, large, small);
-    BigInt_ReduceToRealSize(ret, large->dataLen + 1U);
+    BigInt_RawAdd(ret, in1, in2);
+    BigInt_ReduceToRealSize(ret, in1->dataLen + 1U);
 
     if (ret != *retPtr) {
-        BigInt_Free((BigInt_Impl_T)*retPtr);
+        BigInt_Free(*retPtr);
         *retPtr = ret;
     }
 }
 
-static void BigInt_RawSub(BigInt_Impl_T ret, BigInt_Impl_CT in1, BigInt_Impl_CT in2) {
+static void BigInt_RawSub(BigInt_T ret, BigInt_CT in1, BigInt_CT in2) {
     const size_t in1Len = (in1->dataLen + 3U) >> 2U;
     const size_t in2Len = (in2->dataLen + 3U) >> 2U;
     size_t i, smallSize = (in1Len < in2Len) ? in1Len : in2Len;
@@ -226,31 +209,29 @@ static void BigInt_RawSub(BigInt_Impl_T ret, BigInt_Impl_CT in1, BigInt_Impl_CT 
 }
 
 void BigInt_Sub(BigInt_T *retPtr, BigInt_CT in1, BigInt_CT in2) {
-    BigInt_Impl_T ret = *retPtr;
-    size_t retSize = ((BigInt_Impl_CT)in1)->dataLen;
+    BigInt_T ret = *retPtr;
+    size_t retSize = in1->dataLen;
 
-    if (((BigInt_Impl_CT)in1)->dataLen < ((BigInt_Impl_CT)in2)->dataLen) {
-        retSize = ((BigInt_Impl_CT)in2)->dataLen;
-    }
+    if (in1->dataLen < in2->dataLen) retSize = in2->dataLen;
     if (ret->bufferLen < retSize) ret = BigInt_Alloc(retSize);
 
     BigInt_RawSub(ret, in1, in2);
     BigInt_ReduceToRealSize(ret, retSize);
 
     if (ret != *retPtr) {
-        BigInt_Free((BigInt_Impl_T)*retPtr);
+        BigInt_Free(*retPtr);
         *retPtr = ret;
     }
 }
 
-static void BigInt_RawMul(BigInt_Impl_T ret, BigInt_Impl_CT n1, BigInt_Impl_CT n2) {
+static void BigInt_RawMul(BigInt_T ret, BigInt_CT n1, BigInt_CT n2) {
     const size_t n1Len = (n1->dataLen + 3U) >> 2U;
     const size_t n2Len = (n2->dataLen + 3U) >> 2U;
 
     for (size_t i = 0U; i < n1Len; ++i) {
         uint32_t *const dest = &ret->data[i], carry = 0U;
         const uint32_t num1 = n1->data[i];
-        // if (num1 == 0U) continue;
+        if (num1 == 0U) continue;
 
         for (size_t j = 0U; j < n2Len; ++j) {
             uint64_t temp = (uint64_t)num1 * n2->data[j];
@@ -262,15 +243,14 @@ static void BigInt_RawMul(BigInt_Impl_T ret, BigInt_Impl_CT n1, BigInt_Impl_CT n
     }
 }
 void BigInt_Mul(BigInt_T *retPtr, BigInt_CT in1, BigInt_CT in2) {
-    BigInt_Impl_CT n1 = (BigInt_Impl_T)in1, n2 = (BigInt_Impl_T)in2;
-    const size_t retSize = n1->dataLen + n2->dataLen + sizeof(n1->data[0]);
+    const size_t retSize = in1->dataLen + in2->dataLen + sizeof(in1->data[0]);
 
-    BigInt_Impl_T ret = BigInt_Alloc(retSize);
+    BigInt_T ret = BigInt_Alloc(retSize);
     (void)memset(ret->data, 0, ret->bufferLen);
 
-    BigInt_RawMul(ret, n1, n2);
+    BigInt_RawMul(ret, in1, in2);
     BigInt_ReduceToRealSize(ret, retSize);
 
-    BigInt_Free((BigInt_Impl_T)*retPtr);
+    BigInt_Free(*retPtr);
     *retPtr = ret;
 }
