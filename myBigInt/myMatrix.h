@@ -4,8 +4,9 @@
 #include <stdint.h>
 #include "myBigInt.h"
 
-typedef void *Matrix_T;
-typedef const void *Matrix_CT;
+struct Matrix_Impl_T;
+typedef struct Matrix_Impl_T *Matrix_T;
+typedef const struct Matrix_Impl_T *Matrix_CT;
 
 extern void Mat_Prt(Matrix_CT destMat);
 extern Matrix_T Mat_New(size_t row, size_t col, const uint64_t initData[]);

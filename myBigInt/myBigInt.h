@@ -3,8 +3,9 @@
 
 #include <stdint.h>
 
-typedef void *BigInt_T;
-typedef const void *BigInt_CT;
+struct BigInt_Impl_T;
+typedef struct BigInt_Impl_T *BigInt_T;
+typedef const struct BigInt_Impl_T *BigInt_CT;
 
 extern volatile size_t BigInt_mallocCount, BigInt_freeCount;
 
