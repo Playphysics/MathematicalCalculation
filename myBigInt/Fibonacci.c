@@ -1,27 +1,5 @@
 #include "Fibonacci.h"
 #include "myMatrix.h"
-#include "myMatrix22.h"
-
-void Fibonacci(BigInt_T *retPtr, uint32_t elemN) {
-    Matrix22_T mat = Mat22_New(1U, 1U, 1U, 0U);
-    Matrix22_T retMat = Mat22_New(1U, 0U, 1U, 0U);
-
-    if (elemN <= 2U) {
-        BigInt_Reset(retPtr, 1U, 0);
-    } else {
-        for (elemN -= 3U; elemN; elemN >>= 1U) {
-            if (elemN & 0x01U) {
-                Mat22_Mul(retMat, mat, retMat);
-            }
-            Mat22_Mul(mat, mat, mat);
-            // Mat22_Prt(&retMat);
-        }
-        BigInt_Add(retPtr, retMat->a11, retMat->a21);
-    }
-
-    Mat22_Delete(mat);
-    Mat22_Delete(retMat);
-}
 
 void Fibonacci_Mat(BigInt_T *retPtr, uint32_t elemN) {
     Matrix_T mat = Mat_New(2U, 2U, (const uint64_t []){1U, 1U, 1U, 0U});
