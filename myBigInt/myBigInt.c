@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <assert.h>
+
 struct BigInt_Impl_T {
     size_t bufferLen;
     size_t dataLen;
@@ -200,7 +202,7 @@ static void BigInt_RawSub(BigInt_T ret, BigInt_CT in1, BigInt_CT in2) {
     for (i = 0U; i < smallSize; ++i) {
         carry = Uint32Add(&ret->data[i], in1->data[i], ~in2->data[i], carry);
     }
-    for (i = smallSize; i < in1Len && carry == 0U; ++i) {
+    for (i = smallSize; i < in1Len; ++i) {
         carry = Uint32Add(&ret->data[i], in1->data[i], 0xFFFFFFFFU, carry);
     }
     for (i = smallSize; i < in2Len; ++i) {
@@ -253,4 +255,145 @@ void BigInt_Mul(BigInt_T *retPtr, BigInt_CT in1, BigInt_CT in2) {
 
     BigInt_Free(*retPtr);
     *retPtr = ret;
+}
+
+int BigInt_Cmp(BigInt_CT in1, BigInt_CT in2) {
+    if (in1->dataLen > in2->dataLen) return 1;
+    if (in1->dataLen < in2->dataLen) return -1;
+
+    size_t u32Size = (in1->dataLen + 3U) >> 2U;
+    while (u32Size-- > 0U) {
+        if (in1->data[u32Size] > in2->data[u32Size]) return 1;
+        if (in1->data[u32Size] < in2->data[u32Size]) return -1;
+    }
+    return 0;
+}
+
+// === Test ====== Test ====== Test ====== Test ====== Test ===
+// === Test ====== Test ====== Test ====== Test ====== Test ===
+// === Test ====== Test ====== Test ====== Test ====== Test ===
+
+#define BigInt_TestOne(func, in1, in2, expectStr)                     \
+    func(&num, in1, in2);                                             \
+    BigInt_Reset(&expect, 0U, expectStr);                             \
+    if (BigInt_Cmp(num, expect) != 0) {                               \
+        printf("\n=== TEST ERROR ====== TEST ERROR ===\nline: ");     \
+        printf("%d %s with (%s, %s)\n", __LINE__, #func, #in1, #in2); \
+        printf("expect:\n%s\nThe result:\n", expectStr);              \
+        BigInt_Prt(num, 10U, "\n\n"), exit(-1);                       \
+    }
+
+static void BigInt_TestAdd(BigInt_CT zero, BigInt_CT one, BigInt_CT FF_U64, BigInt_CT F0_8) {
+    BigInt_T num = BigInt_New(0U, 0);
+    BigInt_T expect = BigInt_New(0U, 0);
+
+    BigInt_TestOne(BigInt_Add, zero, zero, "0x0");
+    BigInt_TestOne(BigInt_Add, one, one, "0x2");
+    BigInt_TestOne(BigInt_Add, FF_U64, FF_U64, "0x1fffffffffffffffe");
+    BigInt_TestOne(BigInt_Add, F0_8, F0_8,
+                   "0x1fdb974130eca8643fdb974130eca8643fdb974130eca8643fdb974130eca8643fdb974130eca"
+                   "8643fdb974130eca8643fdb974130eca8643fdb974130eca8642");
+
+    BigInt_TestOne(BigInt_Add, zero, one, "0x1");
+    BigInt_TestOne(BigInt_Add, one, zero, "0x1");
+    BigInt_TestOne(BigInt_Add, FF_U64, F0_8,
+                   "0xfedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654"
+                   "321fedcba0987654321fedcba0987654322fedcba0987654320");
+    BigInt_TestOne(BigInt_Add, F0_8, FF_U64,
+                   "0xfedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654"
+                   "321fedcba0987654321fedcba0987654322fedcba0987654320");
+
+    BigInt_Delete(expect);
+    BigInt_Delete(num);
+
+    printf("%s passed all the tests\n", __func__);
+}
+static void BigInt_TestSub(BigInt_CT zero, BigInt_CT one, BigInt_CT FF_U64, BigInt_CT F0_8) {
+    BigInt_T num = BigInt_New(0U, 0);
+    BigInt_T expect = BigInt_New(0U, 0);
+
+    BigInt_TestOne(BigInt_Sub, zero, zero, "0x0");
+    BigInt_TestOne(BigInt_Sub, one, one, "0x0");
+    BigInt_TestOne(BigInt_Sub, FF_U64, FF_U64, "0x0");
+    BigInt_TestOne(BigInt_Sub, F0_8, F0_8, "0x0");
+
+    BigInt_TestOne(BigInt_Sub, zero, one, "0xffffffff");
+    BigInt_TestOne(BigInt_Sub, one, zero, "0x1");
+    BigInt_TestOne(BigInt_Sub, FF_U64, F0_8,
+                   "0x12345f6789abcde012345f6789abcde012345f6789abcde012345f6789abcde012345f6789abc"
+                   "de012345f6789abcde012345f6789abcdf012345f6789abcde");
+    BigInt_TestOne(BigInt_Sub, F0_8, FF_U64,
+                   "0xfedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654"
+                   "321fedcba0987654321fedcba0987654320fedcba0987654322");
+
+    BigInt_Delete(expect);
+    BigInt_Delete(num);
+
+    printf("%s passed all the tests\n", __func__);
+}
+static void BigInt_TestMul(BigInt_CT zero, BigInt_CT one, BigInt_CT FF_U64, BigInt_CT F0_8) {
+    BigInt_T num = BigInt_New(0U, 0);
+    BigInt_T expect = BigInt_New(0U, 0);
+
+    BigInt_TestOne(BigInt_Mul, zero, zero, "0x0");
+    BigInt_TestOne(BigInt_Mul, one, one, "0x1");
+    BigInt_TestOne(BigInt_Mul, FF_U64, FF_U64, "0xfffffffffffffffe0000000000000001");
+    BigInt_TestOne(
+        BigInt_Mul, F0_8, F0_8,
+        "0xfdbabf7b303f805cca74202338234af9972d80cb4007159663e6e17347eae03330a0421b4fceaacffd59a2c3"
+        "57b2756cca13036b5f96400996cc6413677a0aa4681045c50eded4899b56e51d06fb09ecce9d8474ff173f5001"
+        "e423ccf73374b3352ac324ef4faa166871627ce76bdf799bb801d4df8814dccefea12cd7a44a41");
+
+    BigInt_TestOne(BigInt_Mul, zero, one, "0x0");
+    BigInt_TestOne(BigInt_Mul, one, zero, "0x0");
+    BigInt_TestOne(BigInt_Mul, FF_U64, F0_8,
+                   "0xfedcba0987654320fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                   "fffffffffffffffffffffffffffffffffffffffffffffffffff012345f6789abcdf");
+    BigInt_TestOne(BigInt_Mul, F0_8, FF_U64,
+                   "0xfedcba0987654320fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                   "fffffffffffffffffffffffffffffffffffffffffffffffffff012345f6789abcdf");
+
+    BigInt_Delete(expect);
+    BigInt_Delete(num);
+
+    printf("%s passed all the tests\n", __func__);
+}
+static void BigInt_TestCmp(BigInt_CT zero, BigInt_CT one, BigInt_CT FF_U64, BigInt_CT F0_8) {
+    BigInt_T num = BigInt_New(0U, 0);
+
+    assert(BigInt_Cmp(zero, zero) == 0);
+    assert(BigInt_Cmp(one, one) == 0);
+    assert(BigInt_Cmp(FF_U64, FF_U64) == 0);
+    assert(BigInt_Cmp(F0_8, F0_8) == 0);
+
+    assert(BigInt_Cmp(zero, one) != 0);
+    assert(BigInt_Cmp(zero, FF_U64) != 0);
+    assert(BigInt_Cmp(zero, F0_8) != 0);
+    assert(BigInt_Cmp(one, FF_U64) != 0);
+    assert(BigInt_Cmp(one, F0_8) != 0);
+    assert(BigInt_Cmp(FF_U64, F0_8) != 0);
+
+    BigInt_Delete(num);
+    printf("%s passed all the tests\n", __func__);
+}
+
+void BigInt_Test(void) {
+    BigInt_T zero = BigInt_New(0U, 0);
+    BigInt_T one = BigInt_New(1U, 0);
+    BigInt_T FF = BigInt_New(UINT64_MAX, 0);
+
+    const char *const ptr =
+        "0xFEDCBA0987654321FEDCBA0987654321FEDCBA0987654321FEDCBA0987654321F"
+        "EDCBA0987654321FEDCBA0987654321FEDCBA0987654321FEDCBA0987654321";
+    BigInt_T F0_8 = BigInt_New(0U, ptr);
+
+    BigInt_TestCmp(zero, one, FF, F0_8);
+    BigInt_TestAdd(zero, one, FF, F0_8);
+    BigInt_TestSub(zero, one, FF, F0_8);
+    BigInt_TestMul(zero, one, FF, F0_8);
+
+    BigInt_Delete(zero);
+    BigInt_Delete(one);
+    BigInt_Delete(FF);
+    BigInt_Delete(F0_8);
 }

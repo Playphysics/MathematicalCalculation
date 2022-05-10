@@ -6,4 +6,7 @@
 extern void Fibonacci_Mat(BigInt_T *retPtr, uint32_t elemN);
 extern void Fibonacci_add(BigInt_T *retPtr, uint32_t elemN);
 
+extern void Factorial_1(BigInt_T *retPtr, uint32_t elemN);
+extern void Factorial_2(BigInt_T *retPtr, uint32_t elemN);
+
 #endif

@@ -21,4 +21,8 @@ extern void BigInt_Add(BigInt_T *retPtr, BigInt_CT in1, BigInt_CT in2);
 extern void BigInt_Sub(BigInt_T *retPtr, BigInt_CT in1, BigInt_CT in2);
 extern void BigInt_Mul(BigInt_T *retPtr, BigInt_CT in1, BigInt_CT in2);
 
+extern int BigInt_Cmp(BigInt_CT in1, BigInt_CT in2);
+
+extern void BigInt_Test(void);
+
 #endif
